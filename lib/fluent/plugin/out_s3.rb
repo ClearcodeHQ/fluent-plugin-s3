@@ -473,11 +473,13 @@ module Fluent::Plugin
       options = {}
       credentials_options = {}
       case
-      when @aws_key_id && @aws_sec_key
-        options[:access_key_id] = @aws_key_id
-        options[:secret_access_key] = @aws_sec_key
       when @assume_role_credentials
         c = @assume_role_credentials
+        if @aws_key_id && @aws_sec_key
+          user_credentials = Aws::Credentials.new(@aws_key_id, @aws_sec_key)
+        else
+          user_credentials = nil
+        end
         credentials_options[:role_arn] = c.role_arn
         credentials_options[:role_session_name] = c.role_session_name
         credentials_options[:policy] = c.policy if c.policy
@@ -486,21 +488,25 @@ module Fluent::Plugin
         credentials_options[:sts_endpoint_url] = c.sts_endpoint_url if c.sts_endpoint_url
         credentials_options[:sts_http_proxy] = c.sts_http_proxy if c.sts_http_proxy
         if c.sts_http_proxy && c.sts_endpoint_url
-          credentials_options[:client] = Aws::STS::Client.new(http_proxy: c.sts_http_proxy, endpoint: c.sts_endpoint_url)
+          credentials_options[:client] = Aws::STS::Client.new(http_proxy: c.sts_http_proxy, endpoint: c.sts_endpoint_url, credentials: user_credentials)
         elsif @region && c.sts_http_proxy
-          credentials_options[:client] = Aws::STS::Client.new(region: @region, http_proxy: c.sts_http_proxy)
+          credentials_options[:client] = Aws::STS::Client.new(region: @region, http_proxy: c.sts_http_proxy, credentials: user_credentials)
         elsif @region && c.sts_endpoint_url
-          credentials_options[:client] = Aws::STS::Client.new(region: @region, endpoint: c.sts_endpoint_url)
+          credentials_options[:client] = Aws::STS::Client.new(region: @region, endpoint: c.sts_endpoint_url, credentials: user_credentials)
         elsif c.sts_http_proxy
-          credentials_options[:client] = Aws::STS::Client.new(http_proxy: c.sts_http_proxy)
+          credentials_options[:client] = Aws::STS::Client.new(http_proxy: c.sts_http_proxy, credentials: user_credentials)
         elsif c.sts_endpoint_url
-          credentials_options[:client] = Aws::STS::Client.new(endpoint: c.sts_endpoint_url)
+          credentials_options[:client] = Aws::STS::Client.new(endpoint: c.sts_endpoint_url, credentials: user_credentials)
         elsif c.sts_region
-          credentials_options[:client] = Aws::STS::Client.new(region: c.sts_region)
+          credentials_options[:client] = Aws::STS::Client.new(region: c.sts_region, credentials: user_credentials)
         elsif @s3_region
-          credentials_options[:client] = Aws::STS::Client.new(region: @s3_region)
+          credentials_options[:client] = Aws::STS::Client.new(region: @s3_region, credentials: user_credentials)
         end
+
         options[:credentials] = Aws::AssumeRoleCredentials.new(credentials_options)
+      when @aws_key_id && @aws_sec_key
+        options[:access_key_id] = @aws_key_id
+        options[:secret_access_key] = @aws_sec_key
       when @web_identity_credentials
         c = @web_identity_credentials
         credentials_options[:role_arn] = c.role_arn
